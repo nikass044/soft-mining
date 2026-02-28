@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 @dataclass(frozen=True)
 class Config:
@@ -18,6 +20,8 @@ class Config:
 
     @classmethod
     def from_env(cls) -> Config:
+        load_dotenv()
+
         repos_raw = os.environ.get("PR_DIGGER_REPOS", "facebook/react")
         repos = [r.strip() for r in repos_raw.split(",") if r.strip()]
 
