@@ -75,3 +75,16 @@ class TestRetryingClient:
         result = client.post_graphql("query { }", {})
         assert "data" in result
         assert inner.post_graphql.call_count == 2
+
+    @patch("pr_digger.retrying_client.time.sleep")
+    def test_graphql_rate_limit_retried(self, mock_sleep):
+        client, inner = self._make_client()
+        inner.post_graphql.side_effect = [
+            RateLimitError(200, "GraphQL rate limit: API rate limit already exceeded"),
+            {"data": {"repository": {"pullRequest": {"files": {"nodes": []}}}}},
+        ]
+
+        result = client.post_graphql("query { }", {})
+        assert "data" in result
+        assert inner.post_graphql.call_count == 2
+        mock_sleep.assert_called_once()
