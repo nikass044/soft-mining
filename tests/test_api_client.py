@@ -52,6 +52,15 @@ class TestBaseGitHubApiClient:
         with pytest.raises(PermanentError, match="GraphQL errors"):
             client.post_graphql("bad query", {})
 
+    def test_post_graphql_rate_limit_raises_rate_limit_error(self):
+        body = {"errors": [{"type": "RATE_LIMITED", "code": "graphql_rate_limit",
+                            "message": "API rate limit already exceeded"}]}
+        transport = FakeTransport([make_response(body=body)])
+        client = BaseGitHubApiClient(transport)
+
+        with pytest.raises(RateLimitError, match="GraphQL rate limit"):
+            client.post_graphql("query { }", {})
+
     def test_429_raises_rate_limit_error(self):
         transport = FakeTransport([
             make_response(status=429, body={"message": "rate limited"}, headers={"retry-after": "30"})

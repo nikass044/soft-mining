@@ -40,7 +40,7 @@ class BaseGitHubApiClient(GitHubApiClient):
         self._raise_for_status(response)
         data = response.json()
         if isinstance(data, dict) and "errors" in data:
-            raise PermanentError(200, f"GraphQL errors: {data['errors']}")
+            self._raise_for_graphql_errors(data["errors"])
         return data
 
     def get_rate_limit(self) -> dict:
@@ -67,6 +67,14 @@ class BaseGitHubApiClient(GitHubApiClient):
             raise TransientError(code, f"Server error: {code}", body=body_text)
 
         raise PermanentError(code, f"Client error: {code}", body=body_text)
+
+    @staticmethod
+    def _raise_for_graphql_errors(errors: list[dict]) -> None:
+        for err in errors:
+            err_type = err.get("type", "")
+            if err_type == "RATE_LIMITED" or err.get("code") == "graphql_rate_limit":
+                raise RateLimitError(200, f"GraphQL rate limit: {err.get('message', '')}")
+        raise PermanentError(200, f"GraphQL errors: {errors}")
 
     @staticmethod
     def _parse_retry_after(headers: dict[str, str]) -> float | None:
