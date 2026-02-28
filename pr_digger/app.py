@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 
@@ -14,7 +15,28 @@ from pr_digger.retrying_client import RetryingGitHubApiClient
 from pr_digger.transport import HttpTransport
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> list[str]:
+    parser = argparse.ArgumentParser(description="Mine GitHub PR data into SQLite")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--all", action="store_true", help="Run all phases (1, 2, 3)")
+    group.add_argument("--phase1", action="store_true", help="Phase 1: PR metadata")
+    group.add_argument("--phase2", action="store_true", help="Phase 2: PR files (GraphQL)")
+    group.add_argument("--phase3", action="store_true", help="Phase 3: PR reviews")
+
+    args = parser.parse_args(argv)
+
+    if args.all:
+        return ["1", "2", "3"]
+    if args.phase1:
+        return ["1"]
+    if args.phase2:
+        return ["2"]
+    return ["3"]
+
+
+def main(argv: list[str] | None = None) -> int:
+    phases = parse_args(argv)
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -48,8 +70,8 @@ def main() -> int:
     )
 
     try:
-        logger.info("Starting pr-digger with repos=%s phases=%s", config.repos, config.phases)
-        orchestrator.run(config.phases)
+        logger.info("Starting pr-digger with repos=%s phases=%s", config.repos, phases)
+        orchestrator.run(phases)
         logger.info("All phases complete")
         return 0
     except KeyboardInterrupt:

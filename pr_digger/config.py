@@ -13,7 +13,6 @@ class Config:
     github_token: str
     db_path: Path
     checkpoint_dir: Path
-    phases: list[str]
     rest_per_page: int = 100
     max_retry_delay: int = 60
     max_retries: int = 10
@@ -30,13 +29,9 @@ class Config:
         db_path = Path(os.environ.get("PR_DIGGER_DB_PATH", "data/pr_digger.db"))
         checkpoint_dir = Path(os.environ.get("PR_DIGGER_CHECKPOINT_DIR", "data/checkpoints"))
 
-        phases_raw = os.environ.get("PR_DIGGER_PHASES", "1,2,3")
-        phases = [p.strip() for p in phases_raw.split(",") if p.strip()]
-
         return cls(
             repos=repos,
             github_token=github_token,
             db_path=db_path,
             checkpoint_dir=checkpoint_dir,
-            phases=phases,
         )

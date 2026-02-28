@@ -17,20 +17,16 @@ GITHUB_TOKEN=ghp_yourTokenHere
 ## Run
 
 ```bash
-python3 -m pr_digger.app
-```
-
-Run specific phases only:
-
-```bash
-PR_DIGGER_PHASES=1 python3 -m pr_digger.app        # PR metadata only
-PR_DIGGER_PHASES=1,2 python3 -m pr_digger.app      # metadata + files
+python3 -m pr_digger.app --all              # all phases
+python3 -m pr_digger.app --phase1           # PR metadata only
+python3 -m pr_digger.app --phase2           # PR files (GraphQL)
+python3 -m pr_digger.app --phase3           # PR reviews
 ```
 
 Override the target repo:
 
 ```bash
-PR_DIGGER_REPOS=facebook/react,vercel/next.js python3 -m pr_digger.app
+PR_DIGGER_REPOS=facebook/react,vercel/next.js python3 -m pr_digger.app --all
 ```
 
 ## Inspect the database
