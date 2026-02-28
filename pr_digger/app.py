@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     logger = logging.getLogger(__name__)
 
-    config = Config.from_env()
+    config = Config.load()
     if not config.github_token:
         logger.error("GITHUB_TOKEN is required")
         return 1

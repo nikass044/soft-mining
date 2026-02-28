@@ -1,16 +1,11 @@
-import os
-
 import pytest
-from dotenv import load_dotenv
-
-load_dotenv()
 
 from pr_digger.api_client import BaseGitHubApiClient
+from pr_digger.config import GITHUB_TOKEN
 from pr_digger.parser import PayloadParser
 from pr_digger.phases.phase2_pr_files import PR_FILES_QUERY
 from pr_digger.transport import HttpTransport
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 pytestmark = pytest.mark.skipif(not GITHUB_TOKEN, reason="GITHUB_TOKEN not set")
 
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from dotenv import load_dotenv
+GITHUB_TOKEN = ""
+DB_PATH = Path("data/pr_digger.db")
+CHECKPOINT_DIR = Path("data/checkpoints")
+REPOS = ["facebook/react"]
 
 
 @dataclass(frozen=True)
@@ -18,20 +20,10 @@ class Config:
     max_retries: int = 10
 
     @classmethod
-    def from_env(cls) -> Config:
-        load_dotenv()
-
-        repos_raw = os.environ.get("PR_DIGGER_REPOS", "facebook/react")
-        repos = [r.strip() for r in repos_raw.split(",") if r.strip()]
-
-        github_token = os.environ.get("GITHUB_TOKEN", "")
-
-        db_path = Path(os.environ.get("PR_DIGGER_DB_PATH", "data/pr_digger.db"))
-        checkpoint_dir = Path(os.environ.get("PR_DIGGER_CHECKPOINT_DIR", "data/checkpoints"))
-
+    def load(cls) -> Config:
         return cls(
-            repos=repos,
-            github_token=github_token,
-            db_path=db_path,
-            checkpoint_dir=checkpoint_dir,
+            repos=list(REPOS),
+            github_token=GITHUB_TOKEN,
+            db_path=DB_PATH,
+            checkpoint_dir=CHECKPOINT_DIR,
         )

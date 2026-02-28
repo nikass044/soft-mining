@@ -8,11 +8,7 @@ Mines GitHub PR metadata, changed files, and reviews into a local SQLite databas
 pip3 install -e ".[dev]"
 ```
 
-Create a `.env` file in the project root:
-
-```
-GITHUB_TOKEN=ghp_yourTokenHere
-```
+Set your GitHub token and repos in `pr_digger/config.py`.
 
 ## Run
 
@@ -21,12 +17,6 @@ python3 -m pr_digger.app --all              # all phases
 python3 -m pr_digger.app --phase1           # PR metadata only
 python3 -m pr_digger.app --phase2           # PR files (GraphQL)
 python3 -m pr_digger.app --phase3           # PR reviews
-```
-
-Override the target repo:
-
-```bash
-PR_DIGGER_REPOS=facebook/react,vercel/next.js python3 -m pr_digger.app --all
 ```
 
 ## Inspect the database
