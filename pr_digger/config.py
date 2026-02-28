@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
+from dotenv import load_dotenv
 
-GITHUB_TOKEN = ""
 DB_PATH = Path("data/pr_digger.db")
 CHECKPOINT_DIR = Path("data/checkpoints")
 REPOS = ["facebook/react"]
@@ -21,9 +22,11 @@ class Config:
 
     @classmethod
     def load(cls) -> Config:
+        load_dotenv()
+
         return cls(
             repos=list(REPOS),
-            github_token=GITHUB_TOKEN,
+            github_token=os.environ.get("GITHUB_TOKEN", ""),
             db_path=DB_PATH,
             checkpoint_dir=CHECKPOINT_DIR,
         )
