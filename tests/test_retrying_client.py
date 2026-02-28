@@ -8,9 +8,9 @@ from pr_digger.retrying_client import RetryingGitHubApiClient
 
 
 class TestRetryingClient:
-    def _make_client(self, max_retries=3):
+    def _make_client(self):
         inner = MagicMock()
-        controller = RateLimitController(max_retry_delay=1, max_retries=max_retries)
+        controller = RateLimitController(max_retry_delay=1)
         client = RetryingGitHubApiClient(inner, controller)
         return client, inner
 
@@ -56,13 +56,17 @@ class TestRetryingClient:
         assert inner.get_rest.call_count == 1
 
     @patch("pr_digger.retrying_client.time.sleep")
-    def test_gives_up_after_max_retries(self, mock_sleep):
-        client, inner = self._make_client(max_retries=2)
-        inner.get_rest.side_effect = TransientError(500, "Server error")
+    def test_retries_indefinitely_until_success(self, mock_sleep):
+        client, inner = self._make_client()
+        inner.get_rest.side_effect = [
+            *[TransientError(500, "Server error") for _ in range(5)],
+            [{"id": 1}],
+        ]
 
-        with pytest.raises(StopIteration, match="Max retries"):
-            client.get_rest("/some/path")
-        assert inner.get_rest.call_count == 3
+        result = client.get_rest("/some/path")
+        assert result == [{"id": 1}]
+        assert inner.get_rest.call_count == 6
+        assert mock_sleep.call_count == 5
 
     @patch("pr_digger.retrying_client.time.sleep")
     def test_graphql_retry(self, mock_sleep):

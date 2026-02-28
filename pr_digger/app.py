@@ -52,7 +52,6 @@ def main(argv: list[str] | None = None) -> int:
     base_client = BaseGitHubApiClient(transport)
     controller = RateLimitController(
         max_retry_delay=config.max_retry_delay,
-        max_retries=config.max_retries,
     )
     api_client = RetryingGitHubApiClient(base_client, controller)
 

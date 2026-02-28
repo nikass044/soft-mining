@@ -7,9 +7,8 @@ logger = logging.getLogger(__name__)
 
 
 class RateLimitController:
-    def __init__(self, max_retry_delay: int = 60, max_retries: int = 10):
+    def __init__(self, max_retry_delay: int = 60):
         self._max_retry_delay = max_retry_delay
-        self._max_retries = max_retries
         self._rest_remaining: int | None = None
         self._rest_reset: float | None = None
         self._graphql_remaining: int | None = None
@@ -29,9 +28,6 @@ class RateLimitController:
             self._update_graphql_from_body(body)
 
     def handle_error(self, retry_after: float | None, attempt: int) -> float:
-        if attempt >= self._max_retries:
-            raise StopIteration(f"Max retries ({self._max_retries}) exceeded")
-
         if retry_after is not None:
             delay = min(retry_after, self._max_retry_delay)
         else:

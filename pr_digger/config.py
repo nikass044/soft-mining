@@ -18,7 +18,6 @@ class Config:
     checkpoint_dir: Path
     rest_per_page: int = 100
     max_retry_delay: int = 60
-    max_retries: int = 10
 
     @classmethod
     def load(cls) -> Config:
