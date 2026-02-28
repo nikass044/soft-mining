@@ -22,40 +22,47 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS pull_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    repo_id INTEGER NOT NULL REFERENCES repositories(id),
+    repo_id INTEGER NOT NULL,
     number INTEGER NOT NULL,
-    author_user_id INTEGER NOT NULL REFERENCES users(id),
+    author_user_id INTEGER NOT NULL,
     state TEXT NOT NULL,
     created_at TEXT,
     merged_at TEXT,
     closed_at TEXT,
     files_synced INTEGER NOT NULL DEFAULT 0,
     reviews_synced INTEGER NOT NULL DEFAULT 0,
-    UNIQUE(repo_id, number)
+    UNIQUE(repo_id, number),
+    FOREIGN KEY (repo_id) REFERENCES repositories(id),
+    FOREIGN KEY (author_user_id) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS files (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    repo_id INTEGER NOT NULL REFERENCES repositories(id),
+    repo_id INTEGER NOT NULL,
     path TEXT NOT NULL,
-    UNIQUE(repo_id, path)
+    UNIQUE(repo_id, path),
+    FOREIGN KEY (repo_id) REFERENCES repositories(id)
 );
 
 CREATE TABLE IF NOT EXISTS pull_request_files (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pull_request_id INTEGER NOT NULL REFERENCES pull_requests(id),
-    file_id INTEGER NOT NULL REFERENCES files(id),
-    UNIQUE(pull_request_id, file_id)
+    pull_request_id INTEGER NOT NULL,
+    file_id INTEGER NOT NULL,
+    UNIQUE(pull_request_id, file_id),
+    FOREIGN KEY (pull_request_id) REFERENCES pull_requests(id),
+    FOREIGN KEY (file_id) REFERENCES files(id)
 );
 
 CREATE TABLE IF NOT EXISTS pull_request_reviews (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     github_review_id INTEGER NOT NULL,
-    pull_request_id INTEGER NOT NULL REFERENCES pull_requests(id),
-    reviewer_user_id INTEGER NOT NULL REFERENCES users(id),
+    pull_request_id INTEGER NOT NULL,
+    reviewer_user_id INTEGER NOT NULL,
     state TEXT NOT NULL,
     submitted_at TEXT,
-    UNIQUE(github_review_id)
+    UNIQUE(github_review_id),
+    FOREIGN KEY (pull_request_id) REFERENCES pull_requests(id),
+    FOREIGN KEY (reviewer_user_id) REFERENCES users(id)
 );
 """
 
