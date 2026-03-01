@@ -3,13 +3,26 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 DB_PATH = Path("data/pr_digger.db")
 CHECKPOINT_DIR = Path("data/checkpoints")
 REPOS = [
     # "facebook/react",
-    "neovim/neovim"
+    "neovim/neovim",
+    "freeCodeCamp/freeCodeCamp",
+    "vuejs/vue",
+    "tensorflow/tensorflow",
+    "microsoft/vscode",
+    "flutter/flutter",
+    "twbs/bootstrap",
+    "vercel/next.js",
+    "golang/go",
+    "facebook/react-native",
+    "electron/electron",
+    "kubernetes/kubernetes",
+    "nodejs/node",
 ]
 GITHUB_TOKEN = "GITHUB_TOKEN"
 PR_EARLIEST_DATE = "2017-01-01T00:00:00Z"
