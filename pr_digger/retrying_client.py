@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import time
 
+import httpx
+
 from pr_digger.api_client import GitHubApiClient
 from pr_digger.errors import RateLimitError, TransientError
 from pr_digger.rate_limit import RateLimitController
@@ -42,5 +44,10 @@ class RetryingGitHubApiClient(GitHubApiClient):
             except TransientError as e:
                 delay = self._controller.handle_error(None, attempt)
                 logger.warning("Transient error on %s: %s (retry in %.1fs)", kind, e, delay)
+                time.sleep(delay)
+                attempt += 1
+            except (httpx.ConnectError, httpx.TimeoutException) as e:
+                delay = self._controller.handle_error(None, attempt)
+                logger.warning("Network error on %s: %s (retry in %.1fs)", kind, e, delay)
                 time.sleep(delay)
                 attempt += 1
