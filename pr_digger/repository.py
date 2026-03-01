@@ -146,6 +146,13 @@ class Repository:
         ).fetchone()
         return row[0]
 
+    def get_repository_id(self, owner: str, name: str) -> int | None:
+        row = self._conn.execute(
+            "SELECT id FROM repositories WHERE owner=? AND name=?",
+            (owner, name),
+        ).fetchone()
+        return row[0] if row else None
+
     def upsert_user(self, rec: UserRecord) -> int:
         self._conn.execute(
             "INSERT INTO users (github_user_id, login) VALUES (?, ?)"
@@ -208,39 +215,41 @@ class Repository:
              rec.reviewer_user_id, rec.state, rec.submitted_at),
         )
 
-    def list_prs_pending_files(self, limit: int = 100) -> list[PendingPR]:
+    def list_prs_pending_files(self, repo_id: int, limit: int = 100) -> list[PendingPR]:
         rows = self._conn.execute(
             "SELECT pr.id, pr.repo_id, pr.number, r.owner, r.name"
             " FROM pull_requests pr"
             " JOIN repositories r ON r.id = pr.repo_id"
-            " WHERE pr.files_synced = 0"
+            " WHERE pr.files_synced = 0 AND pr.repo_id = ?"
             " ORDER BY pr.id"
             " LIMIT ?",
-            (limit,),
+            (repo_id, limit),
         ).fetchall()
         return [PendingPR(*row) for row in rows]
 
-    def list_prs_pending_reviews(self, limit: int = 100) -> list[PendingPR]:
+    def list_prs_pending_reviews(self, repo_id: int, limit: int = 100) -> list[PendingPR]:
         rows = self._conn.execute(
             "SELECT pr.id, pr.repo_id, pr.number, r.owner, r.name"
             " FROM pull_requests pr"
             " JOIN repositories r ON r.id = pr.repo_id"
-            " WHERE pr.reviews_synced = 0"
+            " WHERE pr.reviews_synced = 0 AND pr.repo_id = ?"
             " ORDER BY pr.id"
             " LIMIT ?",
-            (limit,),
+            (repo_id, limit),
         ).fetchall()
         return [PendingPR(*row) for row in rows]
 
-    def count_prs_pending_files(self) -> int:
+    def count_prs_pending_files(self, repo_id: int) -> int:
         row = self._conn.execute(
-            "SELECT COUNT(*) FROM pull_requests WHERE files_synced = 0"
+            "SELECT COUNT(*) FROM pull_requests WHERE files_synced = 0 AND repo_id = ?",
+            (repo_id,),
         ).fetchone()
         return row[0]
 
-    def count_prs_pending_reviews(self) -> int:
+    def count_prs_pending_reviews(self, repo_id: int) -> int:
         row = self._conn.execute(
-            "SELECT COUNT(*) FROM pull_requests WHERE reviews_synced = 0"
+            "SELECT COUNT(*) FROM pull_requests WHERE reviews_synced = 0 AND repo_id = ?",
+            (repo_id,),
         ).fetchone()
         return row[0]
 

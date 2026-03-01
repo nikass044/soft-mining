@@ -23,6 +23,7 @@ def _seed_repo_with_pr(db_path):
     ))
     repo.commit()
     repo.close()
+    return repo_id
 
 
 def _make_orchestrator(tmp_path, base_client=None):
@@ -43,70 +44,69 @@ class TestMiningOrchestrator:
         orchestrator, db_path = _make_orchestrator(tmp_path)
         execution_order = []
 
-        original_run_phase = orchestrator._run_phase
-
-        def tracking_run_phase(key):
+        def tracking_run_phase(key, **kwargs):
             execution_order.append(key)
-            _seed_repo_with_pr(db_path)
 
         with patch.object(orchestrator, "_run_phase", side_effect=tracking_run_phase):
             with patch.object(orchestrator, "_run_parallel") as mock_parallel:
                 orchestrator.run(["prs", "files", "reviews"])
 
         assert execution_order == ["prs"]
-        mock_parallel.assert_called_once_with(["files", "reviews"])
+        mock_parallel.assert_called_once()
+        assert mock_parallel.call_args[0][0] == ["files", "reviews"]
 
     def test_files_and_reviews_run_in_parallel(self, tmp_path):
         orchestrator, db_path = _make_orchestrator(tmp_path)
-        _seed_repo_with_pr(db_path)
+        repo_id = _seed_repo_with_pr(db_path)
 
         thread_names = []
 
-        original_run_phase = orchestrator._run_phase
-
-        def tracking_run_phase(key):
+        def tracking_run_phase(key, **kwargs):
             thread_names.append(threading.current_thread().name)
 
         with patch.object(orchestrator, "_run_phase", side_effect=tracking_run_phase):
-            orchestrator._run_parallel(["files", "reviews"])
+            orchestrator._run_parallel(["files", "reviews"], repo_id)
 
         assert len(thread_names) == 2
         assert thread_names[0] != thread_names[1]
 
     def test_single_phase_runs_sequentially(self, tmp_path):
         orchestrator, db_path = _make_orchestrator(tmp_path)
+        repo_id = _seed_repo_with_pr(db_path)
 
         with patch.object(orchestrator, "_run_phase") as mock_run:
             orchestrator.run(["files"])
 
-        mock_run.assert_called_once_with("files")
+        mock_run.assert_called_once_with("files", repo_id=repo_id)
 
     def test_parallel_error_propagated(self, tmp_path):
         orchestrator, db_path = _make_orchestrator(tmp_path)
+        repo_id = _seed_repo_with_pr(db_path)
 
-        def failing_run_phase(key):
+        def failing_run_phase(key, **kwargs):
             if key == "files":
                 raise RuntimeError("GraphQL failure")
 
         with patch.object(orchestrator, "_run_phase", side_effect=failing_run_phase):
             try:
-                orchestrator._run_parallel(["files", "reviews"])
+                orchestrator._run_parallel(["files", "reviews"], repo_id)
                 assert False, "Should have raised"
             except RuntimeError as exc:
                 assert "GraphQL failure" in str(exc)
 
     def test_parallel_both_threads_finish_even_on_error(self, tmp_path):
         orchestrator, db_path = _make_orchestrator(tmp_path)
+        repo_id = _seed_repo_with_pr(db_path)
         completed = []
 
-        def tracking_run_phase(key):
+        def tracking_run_phase(key, **kwargs):
             if key == "files":
                 raise RuntimeError("fail")
             completed.append(key)
 
         with patch.object(orchestrator, "_run_phase", side_effect=tracking_run_phase):
             try:
-                orchestrator._run_parallel(["files", "reviews"])
+                orchestrator._run_parallel(["files", "reviews"], repo_id)
             except RuntimeError:
                 pass
 

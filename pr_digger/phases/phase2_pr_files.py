@@ -37,20 +37,22 @@ class Phase2PRFiles(MiningPhase):
         api_client: GitHubApiClient,
         repository: Repository,
         parser: PayloadParser,
+        repo_id: int,
         batch_size: int = 100,
     ):
         self._api_client = api_client
         self._repository = repository
         self._parser = parser
+        self._repo_id = repo_id
         self._batch_size = batch_size
 
     def execute(self) -> None:
-        total = self._repository.count_prs_pending_files()
+        total = self._repository.count_prs_pending_files(self._repo_id)
         done = 0
         logger.info("file mining: %d PRs pending", total)
 
         while True:
-            pending = self._repository.list_prs_pending_files(limit=self._batch_size)
+            pending = self._repository.list_prs_pending_files(self._repo_id, limit=self._batch_size)
             if not pending:
                 break
 

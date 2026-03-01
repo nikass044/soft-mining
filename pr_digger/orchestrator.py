@@ -4,14 +4,14 @@ import logging
 import threading
 from pathlib import Path
 
-from pr_digger.api_client import BaseGitHubApiClient, GitHubApiClient
+from pr_digger.api_client import GitHubApiClient
 from pr_digger.checkpoint import FileCheckpointStore
 from pr_digger.parser import PayloadParser
 from pr_digger.phases.phase1_pr_metadata import Phase1PRMetadata
 from pr_digger.phases.phase2_pr_files import Phase2PRFiles
 from pr_digger.phases.phase3_pr_reviews import Phase3PRReviews
 from pr_digger.rate_limit import RateLimitController
-from pr_digger.repository import Repository
+from pr_digger.repository import RepoRecord, Repository
 from pr_digger.retrying_client import RetryingGitHubApiClient
 
 logger = logging.getLogger(__name__)
@@ -45,14 +45,39 @@ class MiningOrchestrator:
         self._max_retry_delay = max_retry_delay
 
     def run(self, phases: list[str]) -> None:
-        if "prs" in phases:
-            self._run_phase("prs")
-
+        want_prs = "prs" in phases
         parallel = [p for p in phases if p in ("files", "reviews")]
-        if len(parallel) > 1:
-            self._run_parallel(parallel)
-        elif parallel:
-            self._run_phase(parallel[0])
+
+        if want_prs:
+            for repo_full_name in self._repos:
+                self._ensure_repo(repo_full_name, True)
+                self._run_phase("prs", repo_full_name=repo_full_name)
+
+        if not parallel:
+            return
+
+        for repo_full_name in self._repos:
+            repo_id = self._ensure_repo(repo_full_name, False)
+            if repo_id is None:
+                logger.warning("Repo %s not found in DB, skipping file/review mining", repo_full_name)
+                continue
+
+            logger.info("Processing %s", repo_full_name)
+            if len(parallel) > 1:
+                self._run_parallel(parallel, repo_id)
+            else:
+                self._run_phase(parallel[0], repo_id=repo_id)
+
+    def _ensure_repo(self, repo_full_name: str, will_mine_prs: bool) -> int | None:
+        repo = Repository(self._db_path)
+        try:
+            owner, name = repo_full_name.split("/", 1)
+            if will_mine_prs:
+                return repo.upsert_repository(RepoRecord(owner, name))
+            return repo.get_repository_id(owner, name)
+        finally:
+            repo.commit()
+            repo.close()
 
     def _create_resources(self) -> tuple[Repository, RetryingGitHubApiClient]:
         repo = Repository(self._db_path)
@@ -60,10 +85,13 @@ class MiningOrchestrator:
         client = RetryingGitHubApiClient(self._base_client, controller)
         return repo, client
 
-    def _build_phase(self, key: str, repo: Repository, client: GitHubApiClient) -> object:
+    def _build_phase(
+        self, key: str, repo: Repository, client: GitHubApiClient,
+        repo_full_name: str | None = None, repo_id: int | None = None,
+    ) -> object:
         if key == "prs":
             return Phase1PRMetadata(
-                repos=self._repos,
+                repo_full_name=repo_full_name or "",
                 api_client=client,
                 repository=repo,
                 parser=self._parser,
@@ -76,33 +104,35 @@ class MiningOrchestrator:
                 api_client=client,
                 repository=repo,
                 parser=self._parser,
+                repo_id=repo_id or 0,
             )
         if key == "reviews":
             return Phase3PRReviews(
                 api_client=client,
                 repository=repo,
                 parser=self._parser,
+                repo_id=repo_id or 0,
                 per_page=self._per_page,
             )
         raise ValueError(f"Unknown phase: {key}")
 
-    def _run_phase(self, key: str) -> None:
+    def _run_phase(self, key: str, repo_full_name: str | None = None, repo_id: int | None = None) -> None:
         name = PHASE_NAMES[key]
         repo, client = self._create_resources()
         try:
             logger.info("Starting %s", name)
-            phase = self._build_phase(key, repo, client)
+            phase = self._build_phase(key, repo, client, repo_full_name=repo_full_name, repo_id=repo_id)
             phase.execute()
             logger.info("Finished %s", name)
         finally:
             repo.close()
 
-    def _run_parallel(self, keys: list[str]) -> None:
+    def _run_parallel(self, keys: list[str], repo_id: int) -> None:
         errors: list[tuple[str, Exception]] = []
 
         def target(key: str) -> None:
             try:
-                self._run_phase(key)
+                self._run_phase(key, repo_id=repo_id)
             except Exception as exc:
                 errors.append((key, exc))
 

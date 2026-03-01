@@ -24,7 +24,7 @@ def make_pr_payload(number, user_id=1, login="testuser", state="closed", created
 
 def _make_phase(repo, checkpoint, api_client, per_page=100, earliest_date=None):
     return Phase1PRMetadata(
-        repos=["facebook/react"],
+        repo_full_name="facebook/react",
         api_client=api_client,
         repository=repo,
         parser=PayloadParser(),

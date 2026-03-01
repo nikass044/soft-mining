@@ -16,22 +16,24 @@ class Phase3PRReviews(MiningPhase):
         api_client: GitHubApiClient,
         repository: Repository,
         parser: PayloadParser,
+        repo_id: int,
         per_page: int = 100,
         batch_size: int = 100,
     ):
         self._api_client = api_client
         self._repository = repository
         self._parser = parser
+        self._repo_id = repo_id
         self._per_page = per_page
         self._batch_size = batch_size
 
     def execute(self) -> None:
-        total = self._repository.count_prs_pending_reviews()
+        total = self._repository.count_prs_pending_reviews(self._repo_id)
         done = 0
         logger.info("review mining: %d PRs pending", total)
 
         while True:
-            pending = self._repository.list_prs_pending_reviews(limit=self._batch_size)
+            pending = self._repository.list_prs_pending_reviews(self._repo_id, limit=self._batch_size)
             if not pending:
                 break
 

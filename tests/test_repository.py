@@ -99,13 +99,13 @@ class TestPendingQueries:
         ))
         repo.commit()
 
-        pending = repo.list_prs_pending_files()
+        pending = repo.list_prs_pending_files(repo_id)
         assert len(pending) == 1
         assert pending[0].pr_id == pr_id
 
         repo.mark_pr_files_synced(pr_id)
         repo.commit()
-        assert len(repo.list_prs_pending_files()) == 0
+        assert len(repo.list_prs_pending_files(repo_id)) == 0
 
     def test_pending_reviews_and_sync(self, repo):
         repo_id = repo.upsert_repository(RepoRecord("facebook", "react"))
@@ -116,9 +116,9 @@ class TestPendingQueries:
         ))
         repo.commit()
 
-        pending = repo.list_prs_pending_reviews()
+        pending = repo.list_prs_pending_reviews(repo_id)
         assert len(pending) == 1
 
         repo.mark_pr_reviews_synced(pr_id)
         repo.commit()
-        assert len(repo.list_prs_pending_reviews()) == 0
+        assert len(repo.list_prs_pending_reviews(repo_id)) == 0

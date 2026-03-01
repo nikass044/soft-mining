@@ -38,10 +38,10 @@ class TestPhase2PRFiles:
             state="closed", created_at=None, merged_at=None, closed_at=None,
         ))
         repo.commit()
-        return repo
+        return repo, repo_id
 
     def test_ingests_files_for_pending_pr(self, tmp_path):
-        repo = self._setup_repo_with_pr(tmp_path)
+        repo, repo_id = self._setup_repo_with_pr(tmp_path)
         api_client = MagicMock()
         api_client.post_graphql.return_value = make_graphql_files_response(
             ["src/index.js", "README.md"]
@@ -51,6 +51,7 @@ class TestPhase2PRFiles:
             api_client=api_client,
             repository=repo,
             parser=PayloadParser(),
+            repo_id=repo_id,
         )
         phase.execute()
 
@@ -60,11 +61,11 @@ class TestPhase2PRFiles:
         pr_files = repo.connection.execute("SELECT COUNT(*) FROM pull_request_files").fetchone()[0]
         assert pr_files == 2
 
-        assert len(repo.list_prs_pending_files()) == 0
+        assert len(repo.list_prs_pending_files(repo_id)) == 0
         repo.close()
 
     def test_handles_graphql_pagination(self, tmp_path):
-        repo = self._setup_repo_with_pr(tmp_path)
+        repo, repo_id = self._setup_repo_with_pr(tmp_path)
         api_client = MagicMock()
         api_client.post_graphql.side_effect = [
             make_graphql_files_response(["file1.js"], has_next=True, end_cursor="cursor1"),
@@ -75,6 +76,7 @@ class TestPhase2PRFiles:
             api_client=api_client,
             repository=repo,
             parser=PayloadParser(),
+            repo_id=repo_id,
         )
         phase.execute()
 
@@ -84,7 +86,7 @@ class TestPhase2PRFiles:
         repo.close()
 
     def test_skips_already_synced_prs(self, tmp_path):
-        repo = self._setup_repo_with_pr(tmp_path)
+        repo, repo_id = self._setup_repo_with_pr(tmp_path)
         pr_id = repo.connection.execute("SELECT id FROM pull_requests").fetchone()[0]
         repo.mark_pr_files_synced(pr_id)
         repo.commit()
@@ -94,6 +96,7 @@ class TestPhase2PRFiles:
             api_client=api_client,
             repository=repo,
             parser=PayloadParser(),
+            repo_id=repo_id,
         )
         phase.execute()
 
