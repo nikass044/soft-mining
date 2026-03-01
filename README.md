@@ -8,15 +8,21 @@ Mines GitHub PR metadata, changed files, and reviews into a local SQLite databas
 pip3 install -e ".[dev]"
 ```
 
-Set your GitHub token and repos in `pr_digger/config.py`.
+Add your GitHub token to `.env`:
+
+```
+GITHUB_TOKEN=ghp_...
+```
+
+Configure repos and earliest date in `pr_digger/config.py`.
 
 ## Run
 
 ```bash
-python3 -m pr_digger.app --all              # all phases
-python3 -m pr_digger.app --phase1           # PR metadata only
-python3 -m pr_digger.app --phase2           # PR files (GraphQL)
-python3 -m pr_digger.app --phase3           # PR reviews
+python3 -m pr_digger.app --all        # all tasks (file + review mining run in parallel)
+python3 -m pr_digger.app --prs        # mine PR metadata and users
+python3 -m pr_digger.app --files      # mine PR files (GraphQL)
+python3 -m pr_digger.app --reviews    # mine PR reviews
 ```
 
 ## Inspect the database
