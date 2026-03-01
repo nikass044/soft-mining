@@ -232,6 +232,20 @@ class Repository:
         ).fetchall()
         return [PendingPR(*row) for row in rows]
 
+    def get_latest_pr_created_at(self, repo_id: int) -> str | None:
+        row = self._conn.execute(
+            "SELECT MAX(created_at) FROM pull_requests WHERE repo_id = ?",
+            (repo_id,),
+        ).fetchone()
+        return row[0] if row else None
+
+    def pr_exists(self, repo_id: int, number: int) -> bool:
+        row = self._conn.execute(
+            "SELECT 1 FROM pull_requests WHERE repo_id = ? AND number = ?",
+            (repo_id, number),
+        ).fetchone()
+        return row is not None
+
     def mark_pr_files_synced(self, pr_id: int) -> None:
         self._conn.execute(
             "UPDATE pull_requests SET files_synced = 1 WHERE id = ?",
