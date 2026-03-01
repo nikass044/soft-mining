@@ -45,16 +45,22 @@ class Phase2PRFiles(MiningPhase):
         self._batch_size = batch_size
 
     def execute(self) -> None:
+        total = self._repository.count_prs_pending_files()
+        done = 0
+        logger.info("file mining: %d PRs pending", total)
+
         while True:
             pending = self._repository.list_prs_pending_files(limit=self._batch_size)
             if not pending:
                 break
 
             for pr in pending:
-                logger.info("Phase2: fetching files for %s/%s#%d", pr.repo_owner, pr.repo_name, pr.number)
+                done += 1
+                pct = done * 100 // total if total else 0
+                logger.info("file mining: %s/%s#%d (%d/%d %d%%)", pr.repo_owner, pr.repo_name, pr.number, done, total, pct)
                 self._ingest_files_for_pr(pr.pr_id, pr.repo_id, pr.repo_owner, pr.repo_name, pr.number)
 
-        logger.info("Phase2: complete")
+        logger.info("file mining: complete")
 
     def _ingest_files_for_pr(
         self, pr_id: int, repo_id: int, owner: str, name: str, number: int

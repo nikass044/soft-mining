@@ -22,7 +22,7 @@ def make_pr_payload(number, user_id=1, login="testuser", state="closed", created
     }
 
 
-def _make_phase(repo, checkpoint, api_client, per_page=100):
+def _make_phase(repo, checkpoint, api_client, per_page=100, earliest_date=None):
     return Phase1PRMetadata(
         repos=["facebook/react"],
         api_client=api_client,
@@ -30,6 +30,7 @@ def _make_phase(repo, checkpoint, api_client, per_page=100):
         parser=PayloadParser(),
         checkpoint=checkpoint,
         per_page=per_page,
+        earliest_date=earliest_date,
     )
 
 
@@ -79,6 +80,23 @@ class TestPhase1FullIngest:
 
         call_params = api_client.get_rest.call_args
         assert call_params[1]["params"]["page"] == 3
+        repo.close()
+
+
+    def test_skips_prs_before_earliest_date(self, tmp_path):
+        repo = Repository(tmp_path / "test.db")
+        checkpoint = FileCheckpointStore(tmp_path / "checkpoints")
+        api_client = MagicMock()
+        api_client.get_rest.return_value = [
+            make_pr_payload(1, user_id=10, login="old_user", created_at="2016-06-15T00:00:00Z"),
+            make_pr_payload(2, user_id=20, login="new_user", created_at="2017-03-01T00:00:00Z"),
+            make_pr_payload(3, user_id=30, login="newer_user", created_at="2018-01-01T00:00:00Z"),
+        ]
+
+        _make_phase(repo, checkpoint, api_client, earliest_date="2017-01-01T00:00:00Z").execute()
+
+        prs = repo.connection.execute("SELECT number FROM pull_requests ORDER BY number").fetchall()
+        assert [p[0] for p in prs] == [2, 3]
         repo.close()
 
 

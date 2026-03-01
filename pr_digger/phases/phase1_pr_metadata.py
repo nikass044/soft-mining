@@ -20,6 +20,7 @@ class Phase1PRMetadata(MiningPhase):
         parser: PayloadParser,
         checkpoint: FileCheckpointStore,
         per_page: int = 100,
+        earliest_date: str | None = None,
     ):
         self._repos = repos
         self._api_client = api_client
@@ -27,6 +28,7 @@ class Phase1PRMetadata(MiningPhase):
         self._parser = parser
         self._checkpoint = checkpoint
         self._per_page = per_page
+        self._earliest_date = earliest_date
 
     def execute(self) -> None:
         state = self._checkpoint.load("phase1") or {}
@@ -37,19 +39,24 @@ class Phase1PRMetadata(MiningPhase):
             self._repository.commit()
 
             start_page = state.get(repo_full_name, 1)
-            logger.info("Phase1: %s starting at page %d", repo_full_name, start_page)
+            logger.info("pr mining: %s starting at page %d", repo_full_name, start_page)
             self._ingest_repo(repo_full_name, repo_id, start_page, state)
 
         self._checkpoint.clear("phase1")
-        logger.info("Phase1: complete")
+        logger.info("pr mining: complete")
 
     def _ingest_repo(self, repo_full_name: str, repo_id: int, start_page: int, state: dict) -> None:
         latest = self._repository.get_latest_pr_created_at(repo_id)
         if latest:
-            logger.info("Phase1: %s has PRs up to %s, fetching newest first", repo_full_name, latest)
+            logger.info("pr mining: %s has PRs up to %s, fetching newest first", repo_full_name, latest)
             self._ingest_incremental(repo_full_name, repo_id, latest)
         else:
             self._ingest_full(repo_full_name, repo_id, start_page, state)
+
+    def _filter_by_earliest_date(self, payload: list) -> list:
+        if not self._earliest_date:
+            return payload
+        return [pr for pr in payload if pr.get("created_at", "") >= self._earliest_date]
 
     def _ingest_full(self, repo_full_name: str, repo_id: int, start_page: int, state: dict) -> None:
         page = start_page
@@ -58,8 +65,10 @@ class Phase1PRMetadata(MiningPhase):
             if not payload:
                 break
 
-            batch = self._parser.parse_pr_list(payload, repo_id)
-            self._persist_batch(batch, repo_id)
+            filtered = self._filter_by_earliest_date(payload)
+            if filtered:
+                batch = self._parser.parse_pr_list(filtered, repo_id)
+                self._persist_batch(batch, repo_id)
 
             state[repo_full_name] = page + 1
             self._checkpoint.save("phase1", state)
@@ -77,7 +86,7 @@ class Phase1PRMetadata(MiningPhase):
 
             new_prs = [pr for pr in payload if not self._repository.pr_exists(repo_id, pr["number"])]
             if not new_prs:
-                logger.info("Phase1: %s caught up at page %d", repo_full_name, page)
+                logger.info("pr mining: %s caught up at page %d", repo_full_name, page)
                 break
 
             batch = self._parser.parse_pr_list(new_prs, repo_id)
@@ -88,7 +97,7 @@ class Phase1PRMetadata(MiningPhase):
             page += 1
 
     def _fetch_page(self, repo_full_name: str, page: int, direction: str = "asc") -> list:
-        logger.info("Phase1: fetching %s page %d (%s)", repo_full_name, page, direction)
+        logger.info("pr mining: fetching %s page %d (%s)", repo_full_name, page, direction)
         return self._api_client.get_rest(
             f"/repos/{repo_full_name}/pulls",
             params={

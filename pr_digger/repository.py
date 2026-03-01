@@ -232,6 +232,18 @@ class Repository:
         ).fetchall()
         return [PendingPR(*row) for row in rows]
 
+    def count_prs_pending_files(self) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM pull_requests WHERE files_synced = 0"
+        ).fetchone()
+        return row[0]
+
+    def count_prs_pending_reviews(self) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM pull_requests WHERE reviews_synced = 0"
+        ).fetchone()
+        return row[0]
+
     def get_latest_pr_created_at(self, repo_id: int) -> str | None:
         row = self._conn.execute(
             "SELECT MAX(created_at) FROM pull_requests WHERE repo_id = ?",

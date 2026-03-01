@@ -7,8 +7,12 @@ from dotenv import load_dotenv
 
 DB_PATH = Path("data/pr_digger.db")
 CHECKPOINT_DIR = Path("data/checkpoints")
-REPOS = ["facebook/react"]
+REPOS = [
+    # "facebook/react",
+    "neovim/neovim"
+]
 GITHUB_TOKEN = "GITHUB_TOKEN"
+PR_EARLIEST_DATE = "2017-01-01T00:00:00Z"
 
 
 @dataclass(frozen=True)
@@ -17,6 +21,7 @@ class Config:
     github_token: str
     db_path: Path
     checkpoint_dir: Path
+    pr_earliest_date: str = PR_EARLIEST_DATE
     rest_per_page: int = 100
     max_retry_delay: int = 60
 
