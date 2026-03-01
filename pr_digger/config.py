@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 DB_PATH = Path("data/pr_digger.db")
 CHECKPOINT_DIR = Path("data/checkpoints")
 REPOS = ["facebook/react"]
+GITHUB_TOKEN = "GITHUB_TOKEN"
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ class Config:
 
         return cls(
             repos=list(REPOS),
-            github_token=os.environ.get("GITHUB_TOKEN", ""),
+            github_token=os.environ.get(GITHUB_TOKEN, ""),
             db_path=DB_PATH,
             checkpoint_dir=CHECKPOINT_DIR,
         )
