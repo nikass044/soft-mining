@@ -123,9 +123,10 @@ class PendingPR:
 class Repository:
     def __init__(self, db_path: Path):
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(db_path))
+        self._conn = sqlite3.connect(str(db_path), timeout=30)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
+        self._conn.execute("PRAGMA busy_timeout=30000")
         self._conn.executescript(SCHEMA_SQL)
         self._conn.commit()
 
