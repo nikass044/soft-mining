@@ -34,11 +34,18 @@ def parse_args(argv: list[str] | None = None) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     phases = parse_args(argv)
 
+    log_format = "%(asctime)s %(levelname)s %(message)s"
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
+        format=log_format,
         datefmt="%H:%M:%S",
     )
+
+    file_handler = logging.FileHandler("pr_digger.log")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter(log_format, datefmt="%Y-%m-%d %H:%M:%S"))
+    logging.getLogger().addHandler(file_handler)
+
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logger = logging.getLogger(__name__)
 
