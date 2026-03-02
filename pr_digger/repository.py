@@ -218,6 +218,13 @@ class Repository:
         ).fetchall()
         return [PendingPR(*row) for row in rows]
 
+    def count_prs(self, github_repo_id: int) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM pull_requests WHERE github_repo_id = ?",
+            (github_repo_id,),
+        ).fetchone()
+        return row[0]
+
     def count_prs_pending_files(self, github_repo_id: int) -> int:
         row = self._conn.execute(
             "SELECT COUNT(*) FROM pull_requests WHERE files_synced = 0 AND github_repo_id = ?",

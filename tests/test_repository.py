@@ -97,6 +97,28 @@ class TestUpserts:
 
 
 class TestPendingQueries:
+    def test_count_prs(self, repo):
+        repo.upsert_repository(RepoRecord(100, "facebook", "react"))
+        repo.upsert_user(UserRecord(1, "author"))
+        assert repo.count_prs(100) == 0
+
+        repo.upsert_pull_request(PullRequestRecord(
+            github_pr_id=5000, github_repo_id=100, number=1,
+            author_github_user_id=1, state="open",
+            created_at=None, merged_at=None, closed_at=None,
+        ))
+        repo.upsert_pull_request(PullRequestRecord(
+            github_pr_id=5001, github_repo_id=100, number=2,
+            author_github_user_id=1, state="closed",
+            created_at=None, merged_at=None, closed_at=None,
+        ))
+        repo.commit()
+
+        assert repo.count_prs(100) == 2
+        repo.mark_pr_files_synced(5000)
+        repo.commit()
+        assert repo.count_prs(100) == 2
+
     def test_pending_files_and_sync(self, repo):
         repo.upsert_repository(RepoRecord(100, "facebook", "react"))
         repo.upsert_user(UserRecord(1, "author"))

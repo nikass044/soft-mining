@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import MagicMock
 
 from pr_digger.parser import PayloadParser
@@ -91,4 +92,38 @@ class TestPhase3PRReviews:
         phase.execute()
 
         api_client.get_rest.assert_not_called()
+        repo.close()
+
+    def test_progress_reflects_global_state(self, tmp_path, caplog):
+        repo = Repository(tmp_path / "test.db")
+        repo.upsert_repository(RepoRecord(100, "facebook", "react"))
+        repo.upsert_user(UserRecord(1, "author"))
+        repo.upsert_user(UserRecord(77, "reviewer"))
+
+        for i in range(1, 4):
+            repo.upsert_pull_request(PullRequestRecord(
+                github_pr_id=5000 + i, github_repo_id=100, number=i,
+                author_github_user_id=1, state="closed",
+                created_at=None, merged_at=None, closed_at=None,
+            ))
+        repo.mark_pr_reviews_synced(5001)
+        repo.mark_pr_reviews_synced(5002)
+        repo.commit()
+
+        api_client = MagicMock()
+        api_client.get_rest.return_value = [
+            make_review_payload(900),
+        ]
+
+        phase = Phase3PRReviews(
+            api_client=api_client,
+            repository=repo,
+            parser=PayloadParser(),
+            github_repo_id=100,
+        )
+        with caplog.at_level(logging.INFO):
+            phase.execute()
+
+        assert "2/3 synced, 1 pending" in caplog.text
+        assert "3/3 100%" in caplog.text
         repo.close()
