@@ -9,27 +9,22 @@ from dotenv import load_dotenv
 DB_PATH = Path("data/pr_digger_v2.db")
 CHECKPOINT_DIR = Path("data/checkpoints")
 REPOS = [
-    # already mined
-    "facebook/react",
-    # "neovim/neovim",
-    # "freeCodeCamp/freeCodeCamp",
-    #
-    # # chunk 1
-    # "vercel/next.js",
-    # "flutter/flutter",
-    # "electron/electron",
-    #
-    # # chunk 2
-    # "facebook/react-native",
-    # "tensorflow/tensorflow",
-    # "nodejs/node",
-    # "golang/go",
-    #
-    # # chunk 3
-    # "kubernetes/kubernetes",
-    # "microsoft/vscode",
-    # "twbs/bootstrap",
-    # "vuejs/vue",
+    # chunk 1
+    "vercel/next.js",
+    "flutter/flutter",
+    "electron/electron",
+
+    # chunk 2
+    "facebook/react-native",
+    "tensorflow/tensorflow",
+    "nodejs/node",
+    "golang/go",
+
+    # chunk 3
+    "kubernetes/kubernetes",
+    "microsoft/vscode",
+    "twbs/bootstrap",
+    "vuejs/vue",
 ]
 GITHUB_TOKEN = "GITHUB_TOKEN"
 PR_EARLIEST_DATE = "2017-01-01T00:00:00Z"
