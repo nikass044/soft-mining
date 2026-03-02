@@ -11,7 +11,7 @@ from pr_digger.phases.phase1_pr_metadata import Phase1PRMetadata
 from pr_digger.phases.phase2_pr_files import Phase2PRFiles
 from pr_digger.phases.phase3_pr_reviews import Phase3PRReviews
 from pr_digger.rate_limit import RateLimitController
-from pr_digger.repository import RepoRecord, Repository
+from pr_digger.repository import Repository
 from pr_digger.retrying_client import RetryingGitHubApiClient
 
 logger = logging.getLogger(__name__)
@@ -50,33 +50,29 @@ class MiningOrchestrator:
 
         if want_prs:
             for repo_full_name in self._repos:
-                self._ensure_repo(repo_full_name, True)
                 self._run_phase("prs", repo_full_name=repo_full_name)
 
         if not parallel:
             return
 
         for repo_full_name in self._repos:
-            repo_id = self._ensure_repo(repo_full_name, False)
-            if repo_id is None:
+            github_repo_id = self._lookup_repo(repo_full_name)
+            if github_repo_id is None:
                 logger.warning("Repo %s not found in DB, skipping file/review mining", repo_full_name)
                 continue
 
             logger.info("Processing %s", repo_full_name)
             if len(parallel) > 1:
-                self._run_parallel(parallel, repo_id)
+                self._run_parallel(parallel, github_repo_id)
             else:
-                self._run_phase(parallel[0], repo_id=repo_id)
+                self._run_phase(parallel[0], github_repo_id=github_repo_id)
 
-    def _ensure_repo(self, repo_full_name: str, will_mine_prs: bool) -> int | None:
+    def _lookup_repo(self, repo_full_name: str) -> int | None:
         repo = Repository(self._db_path)
         try:
             owner, name = repo_full_name.split("/", 1)
-            if will_mine_prs:
-                return repo.upsert_repository(RepoRecord(owner, name))
             return repo.get_repository_id(owner, name)
         finally:
-            repo.commit()
             repo.close()
 
     def _create_resources(self) -> tuple[Repository, RetryingGitHubApiClient]:
@@ -87,7 +83,7 @@ class MiningOrchestrator:
 
     def _build_phase(
         self, key: str, repo: Repository, client: GitHubApiClient,
-        repo_full_name: str | None = None, repo_id: int | None = None,
+        repo_full_name: str | None = None, github_repo_id: int | None = None,
     ) -> object:
         if key == "prs":
             return Phase1PRMetadata(
@@ -104,35 +100,35 @@ class MiningOrchestrator:
                 api_client=client,
                 repository=repo,
                 parser=self._parser,
-                repo_id=repo_id or 0,
+                github_repo_id=github_repo_id or 0,
             )
         if key == "reviews":
             return Phase3PRReviews(
                 api_client=client,
                 repository=repo,
                 parser=self._parser,
-                repo_id=repo_id or 0,
+                github_repo_id=github_repo_id or 0,
                 per_page=self._per_page,
             )
         raise ValueError(f"Unknown phase: {key}")
 
-    def _run_phase(self, key: str, repo_full_name: str | None = None, repo_id: int | None = None) -> None:
+    def _run_phase(self, key: str, repo_full_name: str | None = None, github_repo_id: int | None = None) -> None:
         name = PHASE_NAMES[key]
         repo, client = self._create_resources()
         try:
             logger.info("Starting %s", name)
-            phase = self._build_phase(key, repo, client, repo_full_name=repo_full_name, repo_id=repo_id)
+            phase = self._build_phase(key, repo, client, repo_full_name=repo_full_name, github_repo_id=github_repo_id)
             phase.execute()
             logger.info("Finished %s", name)
         finally:
             repo.close()
 
-    def _run_parallel(self, keys: list[str], repo_id: int) -> None:
+    def _run_parallel(self, keys: list[str], github_repo_id: int) -> None:
         errors: list[tuple[str, Exception]] = []
 
         def target(key: str) -> None:
             try:
-                self._run_phase(key, repo_id=repo_id)
+                self._run_phase(key, github_repo_id=github_repo_id)
             except Exception as exc:
                 errors.append((key, exc))
 

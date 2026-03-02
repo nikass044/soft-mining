@@ -10,9 +10,13 @@ from pr_digger.repository import (
     UserRecord,
 )
 
+REPO_INFO = {"id": 100, "full_name": "facebook/react"}
 
-def make_pr_payload(number, user_id=1, login="testuser", state="closed", created_at="2024-01-01T00:00:00Z"):
+
+def make_pr_payload(number, user_id=1, login="testuser", state="closed",
+                    created_at="2024-01-01T00:00:00Z", pr_id=None):
     return {
+        "id": pr_id or (number * 1000),
         "number": number,
         "state": state,
         "created_at": created_at,
@@ -39,9 +43,10 @@ class TestPhase1FullIngest:
         repo = Repository(tmp_path / "test.db")
         checkpoint = FileCheckpointStore(tmp_path / "checkpoints")
         api_client = MagicMock()
-        api_client.get_rest.return_value = [
-            make_pr_payload(1, user_id=10, login="alice"),
-            make_pr_payload(2, user_id=20, login="bob"),
+        api_client.get_rest.side_effect = [
+            REPO_INFO,
+            [make_pr_payload(1, user_id=10, login="alice"),
+             make_pr_payload(2, user_id=20, login="bob")],
         ]
 
         _make_phase(repo, checkpoint, api_client).execute()
@@ -58,13 +63,14 @@ class TestPhase1FullIngest:
         checkpoint = FileCheckpointStore(tmp_path / "checkpoints")
         api_client = MagicMock()
         api_client.get_rest.side_effect = [
+            REPO_INFO,
             [make_pr_payload(i) for i in range(1, 4)],
             [],
         ]
 
         _make_phase(repo, checkpoint, api_client, per_page=3).execute()
 
-        assert api_client.get_rest.call_count == 2
+        assert api_client.get_rest.call_count == 3
         pr_count = repo.connection.execute("SELECT COUNT(*) FROM pull_requests").fetchone()[0]
         assert pr_count == 3
         repo.close()
@@ -74,23 +80,26 @@ class TestPhase1FullIngest:
         checkpoint = FileCheckpointStore(tmp_path / "checkpoints")
         checkpoint.save("phase1", {"facebook/react": 3})
         api_client = MagicMock()
-        api_client.get_rest.return_value = []
+        api_client.get_rest.side_effect = [
+            REPO_INFO,
+            [],
+        ]
 
         _make_phase(repo, checkpoint, api_client).execute()
 
-        call_params = api_client.get_rest.call_args
-        assert call_params[1]["params"]["page"] == 3
+        pr_page_call = api_client.get_rest.call_args_list[1]
+        assert pr_page_call[1]["params"]["page"] == 3
         repo.close()
-
 
     def test_skips_prs_before_earliest_date(self, tmp_path):
         repo = Repository(tmp_path / "test.db")
         checkpoint = FileCheckpointStore(tmp_path / "checkpoints")
         api_client = MagicMock()
-        api_client.get_rest.return_value = [
-            make_pr_payload(1, user_id=10, login="old_user", created_at="2016-06-15T00:00:00Z"),
-            make_pr_payload(2, user_id=20, login="new_user", created_at="2017-03-01T00:00:00Z"),
-            make_pr_payload(3, user_id=30, login="newer_user", created_at="2018-01-01T00:00:00Z"),
+        api_client.get_rest.side_effect = [
+            REPO_INFO,
+            [make_pr_payload(1, user_id=10, login="old_user", created_at="2016-06-15T00:00:00Z"),
+             make_pr_payload(2, user_id=20, login="new_user", created_at="2017-03-01T00:00:00Z"),
+             make_pr_payload(3, user_id=30, login="newer_user", created_at="2018-01-01T00:00:00Z")],
         ]
 
         _make_phase(repo, checkpoint, api_client, earliest_date="2017-01-01T00:00:00Z").execute()
@@ -102,16 +111,16 @@ class TestPhase1FullIngest:
 
 class TestPhase1IncrementalIngest:
     def _seed_existing_prs(self, repo, numbers):
-        repo_id = repo.upsert_repository(RepoRecord("facebook", "react"))
-        user_id = repo.upsert_user(UserRecord(1, "existing"))
+        repo.upsert_repository(RepoRecord(100, "facebook", "react"))
+        repo.upsert_user(UserRecord(1, "existing"))
         for n in numbers:
             repo.upsert_pull_request(PullRequestRecord(
-                repo_id=repo_id, number=n, author_user_id=user_id,
-                state="closed", created_at=f"2024-01-{n:02d}T00:00:00Z",
+                github_pr_id=n * 1000, github_repo_id=100, number=n,
+                author_github_user_id=1, state="closed",
+                created_at=f"2024-01-{n:02d}T00:00:00Z",
                 merged_at=None, closed_at=None,
             ))
         repo.commit()
-        return repo_id
 
     def test_skips_already_fetched_prs(self, tmp_path):
         repo = Repository(tmp_path / "test.db")
@@ -119,15 +128,16 @@ class TestPhase1IncrementalIngest:
         self._seed_existing_prs(repo, [1, 2, 3])
 
         api_client = MagicMock()
-        api_client.get_rest.return_value = [
-            make_pr_payload(3, created_at="2024-01-03T00:00:00Z"),
-            make_pr_payload(2, created_at="2024-01-02T00:00:00Z"),
-            make_pr_payload(1, created_at="2024-01-01T00:00:00Z"),
+        api_client.get_rest.side_effect = [
+            REPO_INFO,
+            [make_pr_payload(3, created_at="2024-01-03T00:00:00Z"),
+             make_pr_payload(2, created_at="2024-01-02T00:00:00Z"),
+             make_pr_payload(1, created_at="2024-01-01T00:00:00Z")],
         ]
 
         _make_phase(repo, checkpoint, api_client).execute()
 
-        assert api_client.get_rest.call_count == 1
+        assert api_client.get_rest.call_count == 2
         pr_count = repo.connection.execute("SELECT COUNT(*) FROM pull_requests").fetchone()[0]
         assert pr_count == 3
         repo.close()
@@ -138,10 +148,11 @@ class TestPhase1IncrementalIngest:
         self._seed_existing_prs(repo, [1, 2])
 
         api_client = MagicMock()
-        api_client.get_rest.return_value = [
-            make_pr_payload(4, user_id=40, login="new_user", created_at="2024-01-04T00:00:00Z"),
-            make_pr_payload(3, user_id=30, login="another", created_at="2024-01-03T00:00:00Z"),
-            make_pr_payload(2, created_at="2024-01-02T00:00:00Z"),
+        api_client.get_rest.side_effect = [
+            REPO_INFO,
+            [make_pr_payload(4, user_id=40, login="new_user", created_at="2024-01-04T00:00:00Z"),
+             make_pr_payload(3, user_id=30, login="another", created_at="2024-01-03T00:00:00Z"),
+             make_pr_payload(2, created_at="2024-01-02T00:00:00Z")],
         ]
 
         _make_phase(repo, checkpoint, api_client).execute()
@@ -156,12 +167,13 @@ class TestPhase1IncrementalIngest:
         self._seed_existing_prs(repo, [1])
 
         api_client = MagicMock()
-        api_client.get_rest.return_value = [
-            make_pr_payload(1, created_at="2024-01-01T00:00:00Z"),
+        api_client.get_rest.side_effect = [
+            REPO_INFO,
+            [make_pr_payload(1, created_at="2024-01-01T00:00:00Z")],
         ]
 
         _make_phase(repo, checkpoint, api_client).execute()
 
-        call_params = api_client.get_rest.call_args
-        assert call_params[1]["params"]["direction"] == "desc"
+        pr_page_call = api_client.get_rest.call_args_list[1]
+        assert pr_page_call[1]["params"]["direction"] == "desc"
         repo.close()

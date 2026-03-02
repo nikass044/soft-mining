@@ -16,24 +16,24 @@ class Phase3PRReviews(MiningPhase):
         api_client: GitHubApiClient,
         repository: Repository,
         parser: PayloadParser,
-        repo_id: int,
+        github_repo_id: int,
         per_page: int = 100,
         batch_size: int = 100,
     ):
         self._api_client = api_client
         self._repository = repository
         self._parser = parser
-        self._repo_id = repo_id
+        self._github_repo_id = github_repo_id
         self._per_page = per_page
         self._batch_size = batch_size
 
     def execute(self) -> None:
-        total = self._repository.count_prs_pending_reviews(self._repo_id)
+        total = self._repository.count_prs_pending_reviews(self._github_repo_id)
         done = 0
         logger.info("review mining: %d PRs pending", total)
 
         while True:
-            pending = self._repository.list_prs_pending_reviews(self._repo_id, limit=self._batch_size)
+            pending = self._repository.list_prs_pending_reviews(self._github_repo_id, limit=self._batch_size)
             if not pending:
                 break
 
@@ -41,11 +41,11 @@ class Phase3PRReviews(MiningPhase):
                 done += 1
                 pct = done * 100 // total if total else 0
                 logger.info("review mining: %s/%s#%d (%d/%d %d%%)", pr.repo_owner, pr.repo_name, pr.number, done, total, pct)
-                self._ingest_reviews_for_pr(pr.pr_id, pr.repo_owner, pr.repo_name, pr.number)
+                self._ingest_reviews_for_pr(pr.github_pr_id, pr.repo_owner, pr.repo_name, pr.number)
 
         logger.info("review mining: complete")
 
-    def _ingest_reviews_for_pr(self, pr_id: int, owner: str, name: str, number: int) -> None:
+    def _ingest_reviews_for_pr(self, github_pr_id: int, owner: str, name: str, number: int) -> None:
         page = 1
         while True:
             payload = self._api_client.get_rest(
@@ -55,15 +55,14 @@ class Phase3PRReviews(MiningPhase):
             if not payload:
                 break
 
-            batch = self._parser.parse_pr_reviews(payload, pr_id)
+            batch = self._parser.parse_pr_reviews(payload, github_pr_id)
             for user_rec, review_rec in zip(batch.users, batch.reviews):
-                user_id = self._repository.upsert_user(user_rec)
-                review_rec.reviewer_user_id = user_id
+                self._repository.upsert_user(user_rec)
                 self._repository.upsert_review(review_rec)
 
             if len(payload) < self._per_page:
                 break
             page += 1
 
-        self._repository.mark_pr_reviews_synced(pr_id)
+        self._repository.mark_pr_reviews_synced(github_pr_id)
         self._repository.commit()

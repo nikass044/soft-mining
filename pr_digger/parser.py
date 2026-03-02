@@ -27,7 +27,7 @@ class ParsedReviewsBatch:
 
 
 class PayloadParser:
-    def parse_pr_list(self, payload: list[dict], repo_id: int) -> ParsedPRBatch:
+    def parse_pr_list(self, payload: list[dict], github_repo_id: int) -> ParsedPRBatch:
         users: list[UserRecord] = []
         prs: list[PullRequestRecord] = []
 
@@ -38,9 +38,10 @@ class PayloadParser:
 
             users.append(UserRecord(github_user_id=github_user_id, login=login))
             prs.append(PullRequestRecord(
-                repo_id=repo_id,
+                github_pr_id=item["id"],
+                github_repo_id=github_repo_id,
                 number=item["number"],
-                author_user_id=github_user_id,
+                author_github_user_id=github_user_id,
                 state=item["state"],
                 created_at=item.get("created_at"),
                 merged_at=item.get("merged_at"),
@@ -49,7 +50,7 @@ class PayloadParser:
 
         return ParsedPRBatch(users=users, pull_requests=prs)
 
-    def parse_pr_files(self, payload: dict, repo_id: int, pull_request_id: int) -> ParsedFilesBatch:
+    def parse_pr_files(self, payload: dict) -> ParsedFilesBatch:
         pr_node = payload.get("data", {}).get("repository", {}).get("pullRequest", {})
         files_conn = pr_node.get("files", {})
         nodes = files_conn.get("nodes", [])
@@ -60,7 +61,7 @@ class PayloadParser:
         page_info = pr_node.get("files", {}).get("pageInfo", {})
         return page_info.get("hasNextPage", False), page_info.get("endCursor")
 
-    def parse_pr_reviews(self, payload: list[dict], pull_request_id: int) -> ParsedReviewsBatch:
+    def parse_pr_reviews(self, payload: list[dict], github_pr_id: int) -> ParsedReviewsBatch:
         users: list[UserRecord] = []
         reviews: list[ReviewRecord] = []
 
@@ -72,8 +73,8 @@ class PayloadParser:
             users.append(UserRecord(github_user_id=github_user_id, login=login))
             reviews.append(ReviewRecord(
                 github_review_id=item["id"],
-                pull_request_id=pull_request_id,
-                reviewer_user_id=github_user_id,
+                github_pr_id=github_pr_id,
+                reviewer_github_user_id=github_user_id,
                 state=item.get("state", "COMMENTED"),
                 submitted_at=item.get("submitted_at"),
             ))

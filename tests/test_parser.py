@@ -5,6 +5,7 @@ class TestParsePRList:
     def test_extracts_users_and_prs(self):
         payload = [
             {
+                "id": 1001,
                 "number": 1,
                 "state": "closed",
                 "created_at": "2024-01-01T00:00:00Z",
@@ -13,6 +14,7 @@ class TestParsePRList:
                 "user": {"id": 42, "login": "author1"},
             },
             {
+                "id": 1002,
                 "number": 2,
                 "state": "open",
                 "created_at": "2024-01-03T00:00:00Z",
@@ -22,11 +24,12 @@ class TestParsePRList:
             },
         ]
         parser = PayloadParser()
-        batch = parser.parse_pr_list(payload, repo_id=1)
+        batch = parser.parse_pr_list(payload, github_repo_id=100)
 
         assert len(batch.users) == 2
         assert batch.users[0].github_user_id == 42
         assert len(batch.pull_requests) == 2
+        assert batch.pull_requests[0].github_pr_id == 1001
         assert batch.pull_requests[0].number == 1
         assert batch.pull_requests[1].state == "open"
 
@@ -50,7 +53,7 @@ class TestParsePRFiles:
             }
         }
         parser = PayloadParser()
-        batch = parser.parse_pr_files(payload, repo_id=1, pull_request_id=10)
+        batch = parser.parse_pr_files(payload)
         assert batch.file_paths == ["src/index.js", "README.md"]
 
     def test_page_info_extraction(self):
@@ -89,7 +92,7 @@ class TestParsePRReviews:
             },
         ]
         parser = PayloadParser()
-        batch = parser.parse_pr_reviews(payload, pull_request_id=10)
+        batch = parser.parse_pr_reviews(payload, github_pr_id=5000)
 
         assert len(batch.users) == 2
         assert batch.users[0].login == "reviewer1"

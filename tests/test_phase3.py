@@ -22,17 +22,18 @@ def make_review_payload(review_id, user_id=77, login="reviewer", state="APPROVED
 class TestPhase3PRReviews:
     def _setup_repo_with_pr(self, tmp_path):
         repo = Repository(tmp_path / "test.db")
-        repo_id = repo.upsert_repository(RepoRecord("facebook", "react"))
-        user_id = repo.upsert_user(UserRecord(1, "author"))
+        repo.upsert_repository(RepoRecord(100, "facebook", "react"))
+        repo.upsert_user(UserRecord(1, "author"))
         repo.upsert_pull_request(PullRequestRecord(
-            repo_id=repo_id, number=1, author_user_id=user_id,
-            state="closed", created_at=None, merged_at=None, closed_at=None,
+            github_pr_id=5000, github_repo_id=100, number=1,
+            author_github_user_id=1, state="closed",
+            created_at=None, merged_at=None, closed_at=None,
         ))
         repo.commit()
-        return repo, repo_id
+        return repo, 100
 
     def test_ingests_reviews_for_pending_pr(self, tmp_path):
-        repo, repo_id = self._setup_repo_with_pr(tmp_path)
+        repo, github_repo_id = self._setup_repo_with_pr(tmp_path)
         api_client = MagicMock()
         api_client.get_rest.return_value = [
             make_review_payload(501, user_id=10, login="reviewer1", state="APPROVED"),
@@ -43,7 +44,7 @@ class TestPhase3PRReviews:
             api_client=api_client,
             repository=repo,
             parser=PayloadParser(),
-            repo_id=repo_id,
+            github_repo_id=github_repo_id,
         )
         phase.execute()
 
@@ -52,11 +53,11 @@ class TestPhase3PRReviews:
         ).fetchall()
         assert [r[0] for r in reviews] == ["APPROVED", "CHANGES_REQUESTED"]
 
-        assert len(repo.list_prs_pending_reviews(repo_id)) == 0
+        assert len(repo.list_prs_pending_reviews(github_repo_id)) == 0
         repo.close()
 
     def test_paginates_reviews(self, tmp_path):
-        repo, repo_id = self._setup_repo_with_pr(tmp_path)
+        repo, github_repo_id = self._setup_repo_with_pr(tmp_path)
         api_client = MagicMock()
         api_client.get_rest.side_effect = [
             [make_review_payload(i) for i in range(1, 4)],
@@ -67,7 +68,7 @@ class TestPhase3PRReviews:
             api_client=api_client,
             repository=repo,
             parser=PayloadParser(),
-            repo_id=repo_id,
+            github_repo_id=github_repo_id,
             per_page=3,
         )
         phase.execute()
@@ -76,9 +77,8 @@ class TestPhase3PRReviews:
         repo.close()
 
     def test_skips_already_synced_prs(self, tmp_path):
-        repo, repo_id = self._setup_repo_with_pr(tmp_path)
-        pr_id = repo.connection.execute("SELECT id FROM pull_requests").fetchone()[0]
-        repo.mark_pr_reviews_synced(pr_id)
+        repo, github_repo_id = self._setup_repo_with_pr(tmp_path)
+        repo.mark_pr_reviews_synced(5000)
         repo.commit()
 
         api_client = MagicMock()
@@ -86,7 +86,7 @@ class TestPhase3PRReviews:
             api_client=api_client,
             repository=repo,
             parser=PayloadParser(),
-            repo_id=repo_id,
+            github_repo_id=github_repo_id,
         )
         phase.execute()
 

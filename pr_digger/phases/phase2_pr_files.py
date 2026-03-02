@@ -37,22 +37,22 @@ class Phase2PRFiles(MiningPhase):
         api_client: GitHubApiClient,
         repository: Repository,
         parser: PayloadParser,
-        repo_id: int,
+        github_repo_id: int,
         batch_size: int = 100,
     ):
         self._api_client = api_client
         self._repository = repository
         self._parser = parser
-        self._repo_id = repo_id
+        self._github_repo_id = github_repo_id
         self._batch_size = batch_size
 
     def execute(self) -> None:
-        total = self._repository.count_prs_pending_files(self._repo_id)
+        total = self._repository.count_prs_pending_files(self._github_repo_id)
         done = 0
         logger.info("file mining: %d PRs pending", total)
 
         while True:
-            pending = self._repository.list_prs_pending_files(self._repo_id, limit=self._batch_size)
+            pending = self._repository.list_prs_pending_files(self._github_repo_id, limit=self._batch_size)
             if not pending:
                 break
 
@@ -60,12 +60,12 @@ class Phase2PRFiles(MiningPhase):
                 done += 1
                 pct = done * 100 // total if total else 0
                 logger.info("file mining: %s/%s#%d (%d/%d %d%%)", pr.repo_owner, pr.repo_name, pr.number, done, total, pct)
-                self._ingest_files_for_pr(pr.pr_id, pr.repo_id, pr.repo_owner, pr.repo_name, pr.number)
+                self._ingest_files_for_pr(pr.github_pr_id, pr.github_repo_id, pr.repo_owner, pr.repo_name, pr.number)
 
         logger.info("file mining: complete")
 
     def _ingest_files_for_pr(
-        self, pr_id: int, repo_id: int, owner: str, name: str, number: int
+        self, github_pr_id: int, github_repo_id: int, owner: str, name: str, number: int
     ) -> None:
         cursor = None
         while True:
@@ -74,14 +74,14 @@ class Phase2PRFiles(MiningPhase):
                 {"owner": owner, "name": name, "number": number, "after": cursor},
             )
 
-            batch = self._parser.parse_pr_files(payload, repo_id, pr_id)
+            batch = self._parser.parse_pr_files(payload)
             for path in batch.file_paths:
-                file_id = self._repository.upsert_file(FileRecord(repo_id, path))
-                self._repository.upsert_pull_request_file(PullRequestFileRecord(pr_id, file_id))
+                self._repository.upsert_file(FileRecord(github_repo_id, path))
+                self._repository.upsert_pull_request_file(PullRequestFileRecord(github_pr_id, path))
 
             has_next, cursor = self._parser.parse_pr_files_page_info(payload)
             if not has_next:
                 break
 
-        self._repository.mark_pr_files_synced(pr_id)
+        self._repository.mark_pr_files_synced(github_pr_id)
         self._repository.commit()
