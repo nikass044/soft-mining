@@ -6,24 +6,27 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-DB_PATH = Path("data/pr_digger_v2.db")
+DB_PATH = Path("data/pr_digger.db")
 CHECKPOINT_DIR = Path("data/checkpoints")
 REPOS = [
-    # # chunk 1
-    # "vercel/next.js",
+    # # --- Chunk 1 (sum 152,481) --- Nik
     # "flutter/flutter",
-    # "electron/electron",
-    #
-    # # chunk 2
-    # "facebook/react-native",
-    # "tensorflow/tensorflow",
     # "nodejs/node",
+    # "electron/electron",
+    # "facebook/react",
+    # "twbs/bootstrap",
+    #
+    # # --- Chunk 2 (sum 152,507) --- Julian
+    # "microsoft/vscode",
+    # "freeCodeCamp/freeCodeCamp",
+    # "vercel/next.js",
+    # "facebook/react-native",
     # "golang/go",
     #
-    # # chunk 3
+    # # --- Chunk 3 (sum 152,860) --- Jasper
+    # "tensorflow/tensorflow",
     # "kubernetes/kubernetes",
-    # "microsoft/vscode",
-    # "twbs/bootstrap",
+    # "neovim/neovim",
     # "vuejs/vue",
 ]
 GITHUB_TOKEN = "GITHUB_TOKEN"
