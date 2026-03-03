@@ -43,6 +43,7 @@ class MiningOrchestrator:
         self._per_page = per_page
         self._pr_earliest_date = pr_earliest_date
         self._max_retry_delay = max_retry_delay
+        self._db_lock = threading.Lock()
 
     def run(self, phases: list[str]) -> None:
         want_prs = "prs" in phases
@@ -68,7 +69,7 @@ class MiningOrchestrator:
                 self._run_phase(parallel[0], github_repo_id=github_repo_id)
 
     def _lookup_repo(self, repo_full_name: str) -> int | None:
-        repo = Repository(self._db_path)
+        repo = Repository(self._db_path, write_lock=self._db_lock)
         try:
             owner, name = repo_full_name.split("/", 1)
             return repo.get_repository_id(owner, name)
@@ -76,7 +77,7 @@ class MiningOrchestrator:
             repo.close()
 
     def _create_resources(self) -> tuple[Repository, RetryingGitHubApiClient]:
-        repo = Repository(self._db_path)
+        repo = Repository(self._db_path, write_lock=self._db_lock)
         controller = RateLimitController(self._max_retry_delay)
         client = RetryingGitHubApiClient(self._base_client, controller)
         return repo, client

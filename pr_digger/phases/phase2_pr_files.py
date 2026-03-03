@@ -65,8 +65,11 @@ class Phase2PRFiles(MiningPhase):
                     self._ingest_files_for_pr(pr.github_pr_id, pr.github_repo_id, pr.repo_owner, pr.repo_name, pr.number)
                 except Exception:
                     logger.exception("file mining: failed on %s/%s#%d, skipping", pr.repo_owner, pr.repo_name, pr.number)
-                    self._repository.mark_pr_files_synced(pr.github_pr_id)
-                    self._repository.commit()
+                    try:
+                        with self._repository.transaction():
+                            self._repository.mark_pr_files_synced(pr.github_pr_id)
+                    except Exception:
+                        logger.exception("file mining: failed to mark %s/%s#%d as synced", pr.repo_owner, pr.repo_name, pr.number)
 
         logger.info("file mining: complete")
 
@@ -81,13 +84,14 @@ class Phase2PRFiles(MiningPhase):
             )
 
             batch = self._parser.parse_pr_files(payload)
-            for path in batch.file_paths:
-                self._repository.upsert_file(FileRecord(github_repo_id, path))
-                self._repository.upsert_pull_request_file(PullRequestFileRecord(github_pr_id, path))
+            with self._repository.transaction():
+                for path in batch.file_paths:
+                    self._repository.upsert_file(FileRecord(github_repo_id, path))
+                    self._repository.upsert_pull_request_file(PullRequestFileRecord(github_pr_id, path))
 
             has_next, cursor = self._parser.parse_pr_files_page_info(payload)
             if not has_next:
                 break
 
-        self._repository.mark_pr_files_synced(github_pr_id)
-        self._repository.commit()
+        with self._repository.transaction():
+            self._repository.mark_pr_files_synced(github_pr_id)

@@ -46,8 +46,11 @@ class Phase3PRReviews(MiningPhase):
                     self._ingest_reviews_for_pr(pr.github_pr_id, pr.repo_owner, pr.repo_name, pr.number)
                 except Exception:
                     logger.exception("review mining: failed on %s/%s#%d, skipping", pr.repo_owner, pr.repo_name, pr.number)
-                    self._repository.mark_pr_reviews_synced(pr.github_pr_id)
-                    self._repository.commit()
+                    try:
+                        with self._repository.transaction():
+                            self._repository.mark_pr_reviews_synced(pr.github_pr_id)
+                    except Exception:
+                        logger.exception("review mining: failed to mark %s/%s#%d as synced", pr.repo_owner, pr.repo_name, pr.number)
 
         logger.info("review mining: complete")
 
@@ -62,13 +65,14 @@ class Phase3PRReviews(MiningPhase):
                 break
 
             batch = self._parser.parse_pr_reviews(payload, github_pr_id)
-            for user_rec, review_rec in zip(batch.users, batch.reviews):
-                self._repository.upsert_user(user_rec)
-                self._repository.upsert_review(review_rec)
+            with self._repository.transaction():
+                for user_rec, review_rec in zip(batch.users, batch.reviews):
+                    self._repository.upsert_user(user_rec)
+                    self._repository.upsert_review(review_rec)
 
             if len(payload) < self._per_page:
                 break
             page += 1
 
-        self._repository.mark_pr_reviews_synced(github_pr_id)
-        self._repository.commit()
+        with self._repository.transaction():
+            self._repository.mark_pr_reviews_synced(github_pr_id)

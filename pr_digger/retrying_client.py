@@ -11,11 +11,14 @@ from pr_digger.rate_limit import RateLimitController
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MAX_RETRIES = 12
+
 
 class RetryingGitHubApiClient(GitHubApiClient):
-    def __init__(self, inner: GitHubApiClient, controller: RateLimitController):
+    def __init__(self, inner: GitHubApiClient, controller: RateLimitController, max_retries: int = DEFAULT_MAX_RETRIES):
         self._inner = inner
         self._controller = controller
+        self._max_retries = max_retries
 
     def get_rest(self, path: str, params: dict | None = None) -> dict | list:
         return self._with_retry("rest", lambda: self._inner.get_rest(path, params))
@@ -38,16 +41,23 @@ class RetryingGitHubApiClient(GitHubApiClient):
                 return result
             except RateLimitError as e:
                 delay = self._controller.handle_error(e.retry_after, attempt)
-                logger.warning("Rate limit hit on %s: %s (retry in %.1fs)", kind, e, delay)
+                logger.warning(
+                    "Rate limit on %s: %s (attempt %d, retry in %.1fs)",
+                    kind, e, attempt + 1, delay,
+                )
                 time.sleep(delay)
                 attempt += 1
-            except TransientError as e:
+            except (TransientError, httpx.NetworkError, httpx.TimeoutException) as e:
+                if attempt >= self._max_retries:
+                    logger.error("Max retries (%d) exceeded on %s: %s", self._max_retries, kind, e)
+                    raise
                 delay = self._controller.handle_error(None, attempt)
-                logger.warning("Transient error on %s: %s (retry in %.1fs)", kind, e, delay)
+                logger.warning(
+                    "Retryable error on %s: %s (attempt %d/%d, retry in %.1fs)",
+                    kind, e, attempt + 1, self._max_retries, delay,
+                )
                 time.sleep(delay)
                 attempt += 1
-            except (httpx.ConnectError, httpx.TimeoutException) as e:
-                delay = self._controller.handle_error(None, attempt)
-                logger.warning("Network error on %s: %s (retry in %.1fs)", kind, e, delay)
-                time.sleep(delay)
-                attempt += 1
+            except Exception as e:
+                logger.error("Unexpected error on %s (will not retry): %s", kind, e)
+                raise

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -116,7 +118,7 @@ class PendingPR:
 
 
 class Repository:
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, write_lock: threading.Lock | None = None):
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(db_path), timeout=30)
         self._conn.execute("PRAGMA journal_mode=WAL")
@@ -124,10 +126,21 @@ class Repository:
         self._conn.execute("PRAGMA busy_timeout=30000")
         self._conn.executescript(SCHEMA_SQL)
         self._conn.commit()
+        self._write_lock = write_lock or threading.Lock()
 
     @property
     def connection(self) -> sqlite3.Connection:
         return self._conn
+
+    @contextmanager
+    def transaction(self):
+        with self._write_lock:
+            try:
+                yield
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
 
     def upsert_repository(self, rec: RepoRecord) -> int:
         self._conn.execute(

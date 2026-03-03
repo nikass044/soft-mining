@@ -36,8 +36,8 @@ class Phase1PRMetadata(MiningPhase):
         owner, name = self._repo_full_name.split("/", 1)
         repo_info = self._api_client.get_rest(f"/repos/{owner}/{name}")
         github_repo_id = repo_info["id"]
-        self._repository.upsert_repository(RepoRecord(github_repo_id, owner, name))
-        self._repository.commit()
+        with self._repository.transaction():
+            self._repository.upsert_repository(RepoRecord(github_repo_id, owner, name))
 
         start_page = state.get(self._repo_full_name, 1)
         logger.info("pr mining: %s starting at page %d", self._repo_full_name, start_page)
@@ -111,7 +111,7 @@ class Phase1PRMetadata(MiningPhase):
         )
 
     def _persist_batch(self, batch) -> None:
-        for user_rec, pr_rec in zip(batch.users, batch.pull_requests):
-            self._repository.upsert_user(user_rec)
-            self._repository.upsert_pull_request(pr_rec)
-        self._repository.commit()
+        with self._repository.transaction():
+            for user_rec, pr_rec in zip(batch.users, batch.pull_requests):
+                self._repository.upsert_user(user_rec)
+                self._repository.upsert_pull_request(pr_rec)
