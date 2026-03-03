@@ -130,6 +130,7 @@ class MiningOrchestrator:
             try:
                 self._run_phase(key, github_repo_id=github_repo_id)
             except Exception as exc:
+                logger.error("%s failed: %s", PHASE_NAMES[key], exc, exc_info=True)
                 errors.append((key, exc))
 
         threads = [threading.Thread(target=target, args=(k,), name=PHASE_NAMES[k]) for k in keys]

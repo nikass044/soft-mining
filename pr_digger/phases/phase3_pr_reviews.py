@@ -42,7 +42,12 @@ class Phase3PRReviews(MiningPhase):
                 done += 1
                 pct = done * 100 // total if total else 0
                 logger.info("review mining: %s/%s#%d (%d/%d %d%%)", pr.repo_owner, pr.repo_name, pr.number, done, total, pct)
-                self._ingest_reviews_for_pr(pr.github_pr_id, pr.repo_owner, pr.repo_name, pr.number)
+                try:
+                    self._ingest_reviews_for_pr(pr.github_pr_id, pr.repo_owner, pr.repo_name, pr.number)
+                except Exception:
+                    logger.exception("review mining: failed on %s/%s#%d, skipping", pr.repo_owner, pr.repo_name, pr.number)
+                    self._repository.mark_pr_reviews_synced(pr.github_pr_id)
+                    self._repository.commit()
 
         logger.info("review mining: complete")
 

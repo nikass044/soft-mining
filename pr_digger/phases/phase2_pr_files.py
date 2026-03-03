@@ -61,7 +61,12 @@ class Phase2PRFiles(MiningPhase):
                 done += 1
                 pct = done * 100 // total if total else 0
                 logger.info("file mining: %s/%s#%d (%d/%d %d%%)", pr.repo_owner, pr.repo_name, pr.number, done, total, pct)
-                self._ingest_files_for_pr(pr.github_pr_id, pr.github_repo_id, pr.repo_owner, pr.repo_name, pr.number)
+                try:
+                    self._ingest_files_for_pr(pr.github_pr_id, pr.github_repo_id, pr.repo_owner, pr.repo_name, pr.number)
+                except Exception:
+                    logger.exception("file mining: failed on %s/%s#%d, skipping", pr.repo_owner, pr.repo_name, pr.number)
+                    self._repository.mark_pr_files_synced(pr.github_pr_id)
+                    self._repository.commit()
 
         logger.info("file mining: complete")
 
